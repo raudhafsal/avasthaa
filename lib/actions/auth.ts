@@ -19,8 +19,10 @@ export interface ActionState {
   success?: boolean;
 }
 
-const initialState: ActionState = {};
-export { initialState as emptyActionState };
+// (emptyActionState now lives in lib/action-state.ts — a "use server"
+// file may only export async functions, and re-exporting a plain
+// object here was invalid all along; it just hadn't been exercised by
+// a build that traced this module from a new import site until now.)
 
 function fieldErrorsFrom(issues: { path: (string | number)[]; message: string }[]) {
   const out: Record<string, string> = {};

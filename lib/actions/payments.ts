@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { sendNotification } from "@/lib/services/notify";
 
 export interface PaymentActionState {
   error?: string;
@@ -62,18 +63,59 @@ export async function verifyBankTransfer(
   note: string | null,
 ): Promise<PaymentActionState> {
   const supabase = createClient();
-  const { error } = await supabase.rpc("verify_bank_transfer_payment", {
+  const { data, error } = await supabase.rpc("verify_bank_transfer_payment", {
     p_payment_id: paymentId,
     p_approve: approve,
     p_note: note,
   });
+  if (!error && data) {
+    const payment = Array.isArray(data) ? data[0] : data;
+    await sendNotification(
+      payment.profile_id,
+      "order_update",
+      approve ? "Bank transfer verified" : "Bank transfer rejected",
+      approve
+        ? "Your bank transfer was verified. Your order will now be prepared."
+        : `Your bank transfer couldn't be verified: ${note ?? "please check the slip and try again."}`,
+      payment.order_id ?? null,
+    );
+  }
+  revalidatePath("/business/payments");
+  return error ? { error: error.message } : { success: true };
+}
+
+export async function verifyWalletTopup(
+  topupId: string,
+  approve: boolean,
+  note: string | null,
+): Promise<PaymentActionState> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("verify_wallet_topup", {
+    p_topup_id: topupId,
+    p_approve: approve,
+    p_note: note,
+  });
+  if (!error && data) {
+    const topup = Array.isArray(data) ? data[0] : data;
+    await sendNotification(
+      topup.profile_id,
+      "order_update",
+      approve ? "Wallet top-up verified" : "Wallet top-up rejected",
+      approve
+        ? `MVR ${topup.amount.toFixed(2)} has been added to your wallet.`
+        : `Your top-up couldn't be verified: ${note ?? "please check the slip and try again."}`,
+    );
+  }
   revalidatePath("/business/payments");
   return error ? { error: error.message } : { success: true };
 }
 
 /** Signed URL so staff can view a private slip image/PDF in the browser. */
-export async function getSlipSignedUrl(slipPath: string): Promise<string | null> {
+export async function getSlipSignedUrl(
+  slipPath: string,
+  bucket: "payment-slips" | "wallet-topup-slips" = "payment-slips",
+): Promise<string | null> {
   const supabase = createClient();
-  const { data } = await supabase.storage.from("payment-slips").createSignedUrl(slipPath, 60 * 10);
+  const { data } = await supabase.storage.from(bucket).createSignedUrl(slipPath, 60 * 10);
   return data?.signedUrl ?? null;
 }

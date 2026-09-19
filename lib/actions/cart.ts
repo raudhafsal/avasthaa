@@ -103,6 +103,52 @@ export async function addMenuItemToCart(
   return { success: true };
 }
 
+export async function addProductToCart(
+  _prev: CartActionState,
+  formData: FormData,
+): Promise<CartActionState> {
+  const businessId = String(formData.get("businessId"));
+  const productId = String(formData.get("productId"));
+  const quantity = Number(formData.get("quantity") ?? 1);
+  const unitPrice = Number(formData.get("unitPrice"));
+
+  if (!businessId || !productId || !quantity || Number.isNaN(unitPrice)) {
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Please log in to add items to your cart." };
+
+  try {
+    const cartId = await getOrCreateCart(businessId, user.id);
+
+    const { data: existing } = await supabase
+      .from("cart_items")
+      .select("id, quantity")
+      .eq("cart_id", cartId)
+      .eq("product_id", productId)
+      .maybeSingle();
+
+    const { error } = existing
+      ? await supabase.from("cart_items").update({ quantity: existing.quantity + quantity }).eq("id", existing.id)
+      : await supabase.from("cart_items").insert({
+          cart_id: cartId,
+          product_id: productId,
+          quantity,
+          unit_price: unitPrice,
+        });
+    if (error) return { error: "Something went wrong. Please try again." };
+  } catch {
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  revalidatePath("/cart");
+  return { success: true };
+}
+
 export async function updateCartItemQuantity(cartItemId: string, quantity: number) {
   const supabase = createClient();
   if (quantity <= 0) {

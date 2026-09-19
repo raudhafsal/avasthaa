@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendNotification } from "@/lib/services/notify";
 
 export interface PartnerActionState {
   error?: string;
@@ -90,7 +91,7 @@ export async function claimJob(deliveryId: string): Promise<PartnerActionState> 
     .update({ assigned_partner_id: user.id, assigned_at: new Date().toISOString() })
     .eq("id", deliveryId)
     .is("assigned_partner_id", null)
-    .select("id, order_id")
+    .select("id, order_id, customer_id")
     .maybeSingle();
 
   if (error || !data) {
@@ -100,6 +101,14 @@ export async function claimJob(deliveryId: string): Promise<PartnerActionState> 
   if (data.order_id) {
     await supabase.from("orders").update({ status: "assigned" }).eq("id", data.order_id);
   }
+  await sendNotification(
+    data.customer_id,
+    "delivery_update",
+    "Delivery partner assigned",
+    "A delivery partner has been assigned to your order.",
+    data.order_id ?? null,
+    deliveryId,
+  );
 
   revalidatePath("/partner");
   revalidatePath("/partner/jobs");
@@ -143,7 +152,7 @@ export async function completeDeliveryWithOtp(
 
   const { data: delivery } = await supabase
     .from("deliveries")
-    .select("id, order_id, delivery_otp, total_fee, stage")
+    .select("id, order_id, customer_id, delivery_otp, total_fee, stage")
     .eq("id", deliveryId)
     .single();
 
@@ -160,6 +169,15 @@ export async function completeDeliveryWithOtp(
   if (delivery.order_id) {
     await supabase.from("orders").update({ status: "delivered" }).eq("id", delivery.order_id);
   }
+
+  await sendNotification(
+    delivery.customer_id,
+    "delivery_update",
+    "Delivered",
+    "Your order has been delivered. Enjoy!",
+    delivery.order_id ?? null,
+    deliveryId,
+  );
 
   const { error: earningError } = await supabase.rpc("record_partner_earning", {
     p_delivery_id: deliveryId,

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { sendNotification } from "@/lib/services/notify";
 
 export interface BusinessActionState {
   error?: string;
@@ -24,24 +25,57 @@ async function getOrderForReadyTransition(orderId: string) {
 
 export async function acceptOrder(orderId: string): Promise<BusinessActionState> {
   const supabase = createClient();
-  const { error } = await supabase.from("orders").update({ status: "accepted" }).eq("id", orderId);
+  const { data, error } = await supabase
+    .from("orders")
+    .update({ status: "accepted" })
+    .eq("id", orderId)
+    .select("customer_id, businesses(name)")
+    .single();
+  if (!error && data) {
+    await sendNotification(
+      (data as any).customer_id,
+      "order_update",
+      "Order accepted",
+      `${(data as any).businesses?.name ?? "The restaurant"} accepted your order and will start preparing it.`,
+      orderId,
+    );
+  }
   revalidatePath("/business/orders");
   return error ? { error: error.message } : { success: true };
 }
 
 export async function rejectOrder(orderId: string, reason: string): Promise<BusinessActionState> {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("orders")
     .update({ status: "rejected", rejection_reason: reason })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .select("customer_id, businesses(name)")
+    .single();
+  if (!error && data) {
+    await sendNotification(
+      (data as any).customer_id,
+      "order_update",
+      "Order rejected",
+      `${(data as any).businesses?.name ?? "The restaurant"} couldn't accept your order: ${reason}`,
+      orderId,
+    );
+  }
   revalidatePath("/business/orders");
   return error ? { error: error.message } : { success: true };
 }
 
 export async function markPreparing(orderId: string): Promise<BusinessActionState> {
   const supabase = createClient();
-  const { error } = await supabase.from("orders").update({ status: "preparing" }).eq("id", orderId);
+  const { data, error } = await supabase
+    .from("orders")
+    .update({ status: "preparing" })
+    .eq("id", orderId)
+    .select("customer_id")
+    .single();
+  if (!error && data) {
+    await sendNotification((data as any).customer_id, "order_update", "Preparing your order", "Your order is now being prepared.", orderId);
+  }
   revalidatePath("/business/orders");
   return error ? { error: error.message } : { success: true };
 }
@@ -110,6 +144,14 @@ export async function markReady(orderId: string): Promise<BusinessActionState> {
 
     const { error: orderError } = await supabase.from("orders").update({ status: "ready" }).eq("id", orderId);
     if (orderError) return { error: orderError.message };
+
+    await sendNotification(
+      order.customer_id,
+      "order_update",
+      "Order ready",
+      `Your order is ready and waiting for a delivery partner. Your handoff code is ${otp}.`,
+      orderId,
+    );
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong." };
   }

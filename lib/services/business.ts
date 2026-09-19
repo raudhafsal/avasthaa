@@ -48,7 +48,7 @@ export async function getDashboardMetrics() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const [{ count: todaysOrders }, { data: todaysSalesRows }, { count: pendingCount }, { count: activeCount }, { count: pendingVerifications }] =
+  const [{ count: todaysOrders }, { data: todaysSalesRows }, { count: pendingCount }, { count: activeCount }, { count: pendingBankTransfers }, { count: pendingTopups }] =
     await Promise.all([
       supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", startOfDay.toISOString()),
       supabase
@@ -67,6 +67,7 @@ export async function getDashboardMetrics() {
         .eq("provider", "bank_transfer")
         .eq("status", "pending")
         .not("slip_path", "is", null),
+      supabase.from("wallet_topups").select("id", { count: "exact", head: true }).eq("status", "pending"),
     ]);
 
   const todaysSales = (todaysSalesRows ?? []).reduce((sum: number, o: any) => sum + o.total_amount, 0);
@@ -76,6 +77,6 @@ export async function getDashboardMetrics() {
     todaysSales,
     pendingCount: pendingCount ?? 0,
     activeCount: activeCount ?? 0,
-    pendingVerifications: pendingVerifications ?? 0,
+    pendingVerifications: (pendingBankTransfers ?? 0) + (pendingTopups ?? 0),
   };
 }
