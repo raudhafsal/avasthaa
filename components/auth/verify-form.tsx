@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useFormState } from "react-dom";
 import { t, type Locale } from "@/lib/i18n/dictionaries";
-import { verifyOtp, resendOtp, emptyActionState } from "@/lib/actions/auth";
+import { verifyOtp, resendOtp } from "@/lib/actions/auth";
+import { emptyActionState } from "@/lib/action-state";
 import { OtpInput } from "@/components/ui/otp-input";
 import { Button } from "@/components/ui/button";
 

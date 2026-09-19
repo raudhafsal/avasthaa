@@ -2,7 +2,8 @@
 
 import { useFormState } from "react-dom";
 import { t, type Locale } from "@/lib/i18n/dictionaries";
-import { resetPassword, emptyActionState } from "@/lib/actions/auth";
+import { resetPassword } from "@/lib/actions/auth";
+import { emptyActionState } from "@/lib/action-state";
 import { TextField } from "@/components/ui/text-field";
 import { Button } from "@/components/ui/button";
 

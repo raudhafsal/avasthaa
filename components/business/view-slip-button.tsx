@@ -1,15 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { getSlipSignedUrl } from "@/lib/actions/payments";
 import { Button } from "@/components/ui/button";
 
-export function ViewSlipButton({ slipPath }: { slipPath: string }) {
+export function ViewSlipButton({
+  slipPath,
+  bucket = "payment-slips",
+}: {
+  slipPath: string;
+  bucket?: "payment-slips" | "wallet-topup-slips";
+}) {
   const [isPending, startTransition] = useTransition();
 
   function handleClick() {
     startTransition(async () => {
-      const signedUrl = await getSlipSignedUrl(slipPath);
+      const signedUrl = await getSlipSignedUrl(slipPath, bucket);
       if (signedUrl) window.open(signedUrl, "_blank", "noopener,noreferrer");
     });
   }
