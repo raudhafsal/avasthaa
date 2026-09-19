@@ -41,6 +41,16 @@ export async function updateUserStatus(userId: string, status: string, oldStatus
   return error ? { error: error.message } : {};
 }
 
+export async function updateUserRole(userId: string, role: string, oldRole: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("profiles").update({ role }).eq("id", userId);
+  if (!error) {
+    await logAudit("user.role_change", "profiles", userId, { role: oldRole }, { role });
+  }
+  revalidatePath("/admin/users");
+  return error ? { error: error.message } : {};
+}
+
 // ── Businesses ────────────────────────────────────────────────────────
 export async function updateBusinessApproval(businessId: string, status: string, oldStatus: string) {
   const supabase = createClient();
