@@ -3,9 +3,11 @@ const withPWA = require("next-pwa")({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
-  fallbacks: {
-    document: "/offline",
-  },
+  // Custom service worker (InjectManifest mode) instead of the default
+  // GenerateSW, so we can add push/notificationclick handlers — see
+  // worker/index.js. Its own offlineFallback() call replaces what the
+  // `fallbacks.document` option used to do in GenerateSW mode.
+  swSrc: "worker/index.js",
 });
 
 /** @type {import('next').NextConfig} */

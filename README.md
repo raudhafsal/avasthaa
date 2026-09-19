@@ -13,7 +13,7 @@ and anon key already filled into `.env.local` in this zip. `npm install
 database *as a genuine non-superuser role* — see the RLS-testing note
 under Architecture below — then pushed to the live project via
 Supabase's migration tool; `tsc --noEmit`, `next lint`, and `next build`
-all pass clean across all 29 routes):
+all pass clean across the full route list):
 
 - Full schema: profiles, islands, businesses (restaurants + shops —
   staff-managed, no owner login), catalog, cart/orders, delivery
@@ -94,12 +94,92 @@ alter table public.spatial_ref_sys enable row level security;
 create policy spatial_ref_sys_select_all on public.spatial_ref_sys for select using (true);
 ```
 
-**Not yet built:** shop/product browsing detail page and the
-shop-product-management screen (schema and RLS already support both —
-staff menu management follows the same pattern), customer wallet
-screen, favorites, notifications list, support tickets, reviews UI, web
-push, the seed script, and real app icons (still placeholders in
-`public/icons/`).
+**Also done, this round:**
+- **Wallet top-ups** — the "wallet" checkout option was silently
+  unusable until this: there was no way for a customer to ever add
+  money. Fixed the same way bank transfers work (slip upload → staff
+  verification in `/business/payments` → `adjust_wallet_balance()`
+  credits it), tested end-to-end locally before pushing live.
+- **Notification dispatch** — `notifications` had RLS enabled with no
+  insert policy at all, so nothing anywhere could ever create one, a
+  gap that existed silently since the schema was first written. Fixed
+  with a `security definer` function restricted to staff/admin/the
+  assigned partner, and wired into order accept/reject/ready, delivery
+  assignment/completion, and bank-transfer/top-up verification.
+- **Fixed a broken-navigation bug**: `/profile` was linked from the
+  header and bottom nav on every customer screen but the page didn't
+  exist (404) — a real bug that would have shipped. Built it, plus
+  notifications, favorites, and support ticket screens (list, new
+  request, threaded replies).
+- **Shop product management** — the gap flagged earlier ("restaurants
+  work, shops don't") is closed: staff can manage a shop's products the
+  same way they manage a restaurant's menu, and customers can now
+  browse and buy from shop-type businesses (`/businesses/[id]`), not
+  just restaurants.
+- **Reviews** — after delivery, the customer sees a star-rating form for
+  the business and (if one was assigned) the delivery partner; ratings
+  feed the `rating_average` already shown throughout the app.
+- **A real, live administrator account** was created directly in
+  Supabase's `auth.users`/`auth.identities` (bcrypt-hashed, pre-confirmed)
+  since the service-role key wasn't available to use the official Admin
+  API. If you ever want to change its password, use the app's
+  "Forgot password" flow or the Supabase dashboard rather than raw SQL.
+- **Real app icons** — the three placeholder text files in
+  `public/icons/` are now actual branded PNGs (192, 512, and a
+  maskable 512 with the mark kept inside the safe zone), generated to
+  match the app's ocean/lagoon color tokens.
+- **A seed script** (`scripts/seed.mjs`, run with
+  `SUPABASE_SERVICE_ROLE_KEY=... npm run seed`) adds a couple of example
+  businesses with menu/product items for local testing. More
+  importantly, **islands and business categories are already seeded on
+  the live project directly** — without this, no customer could have
+  completed profile setup (empty island dropdown) and the home screen's
+  category row would have been empty. This isn't demo data; it's
+  necessary reference data the app assumed would exist and nothing had
+  ever created.
+
+**Everything from the original build list is now done.** The final two
+items:
+
+- **Staff support inbox** (`/business/support`) — tickets by status
+  (open/in progress/resolved/closed), assign-to-self, status changes,
+  and threaded replies using the same `support_messages` RLS that
+  already let staff reply — this was UI-only work, no schema changes.
+- **Web push notifications** — a real, working implementation, not a
+  stub: a `push_subscriptions` table (RLS: a device's subscription is
+  only ever readable/writable by its own owner); an opt-in banner on
+  the notifications page that requests permission and subscribes via
+  the service worker's `PushManager`; and a custom service worker
+  (`worker/index.js`, built via next-pwa's InjectManifest mode instead
+  of the default GenerateSW, since that's what let a `push` /
+  `notificationclick` handler coexist with precaching and the offline
+  fallback) that shows the notification and focuses/opens the right
+  page on click. Every `sendNotification()` call in the app now also
+  attempts a push, best-effort, alongside the in-app notification row.
+  A real VAPID keypair was generated for this project and is already in
+  `.env.local`. **What's verified:** the migration was tested locally
+  under real RLS before going live; the production build was inspected
+  directly — `public/sw.js` (the actual file the browser registers)
+  was confirmed to contain the bundled push/notificationclick handlers
+  alongside workbox's precaching and offline-fallback code, not just
+  "the build didn't error." **What's not verified:** actual push
+  delivery to a real device — that needs a real browser and a real
+  push service round-trip, which this sandboxed environment can't do.
+  It also does nothing until `SUPABASE_SERVICE_ROLE_KEY` is filled in
+  (reading another user's subscription to send them a push has to
+  bypass RLS, the same reasoning as everywhere else that key matters)
+  — until then, `sendPushToProfile()` silently no-ops and the in-app
+  notification still works normally.
+
+**Still worth doing before a real launch**, even though nothing is
+strictly "not built": get the Dhivehi text (throughout the app, and in
+the seed script's island names) reviewed by a native speaker — it was
+machine-drafted; walk through the delivery partner portal and admin
+dashboard write-actions by hand (flagged above and in earlier sections
+as not re-verified under live RLS the way the core order flow was);
+send yourself a real test push once the service-role key and a real
+device are available; and delete or suspend the seed script's two
+example businesses before real customers see them.
 
 ## 1. Project setup
 
@@ -144,13 +224,16 @@ supabase db push
 ## 3. Environment variables
 
 `.env.local` already exists in this zip with real values for the two
-`NEXT_PUBLIC_SUPABASE_*` variables. What's still yours to fill in:
+`NEXT_PUBLIC_SUPABASE_*` variables and a real, working VAPID keypair for
+web push. What's still yours to fill in:
 
 | Variable | Where to find it |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ already set (`https://nfbweclllwesbzcckcoe.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ already set |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API (server-only, never expose) — blank until you add it |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API (server-only, never expose) — blank until you add it. **Web push won't send anything until this is set** (see the web push note above) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | ✅ already set — a real keypair generated for this project. Regenerate with `npx web-push generate-vapid-keys` if you ever need to rotate them (existing subscriptions would need to re-subscribe) |
+| `VAPID_SUBJECT` | ✅ set to a placeholder `mailto:` — change it to your real support email |
 | `NEXT_PUBLIC_MAPS_API_KEY` | Optional — app works with address text if unset |
 | `NEXT_PUBLIC_APP_URL` | Your deployed URL once you have one (used in password-reset emails); `http://localhost:3000` for now |
 
