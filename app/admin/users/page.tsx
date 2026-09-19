@@ -1,5 +1,6 @@
 import { searchUsers } from "@/lib/services/admin";
 import { UserStatusButtons } from "@/components/admin/user-status-buttons";
+import { UserRoleSelect } from "@/components/admin/user-role-select";
 
 const ROLES = ["customer", "staff", "delivery_partner", "administrator", "super_administrator"];
 
@@ -46,9 +47,9 @@ export default async function AdminUsersPage({
           <div key={u.id} className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-card">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-ink-900">{u.full_name}</p>
-              <span className="text-xs capitalize text-ink-500">{u.role.replace("_", " ")}</span>
             </div>
             <p className="ltr-number text-sm text-ink-500">{u.phone || u.email}</p>
+            <UserRoleSelect userId={u.id} role={u.role} />
             <UserStatusButtons userId={u.id} status={u.account_status} />
           </div>
         ))}
