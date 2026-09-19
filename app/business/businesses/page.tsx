@@ -26,10 +26,14 @@ export default async function BusinessesPage() {
                 <p className="text-sm capitalize text-ink-500">{business.business_type}</p>
               </Link>
               <Link
-                href={`/business/businesses/${business.id}/menu`}
+                href={
+                  business.business_type === "restaurant"
+                    ? `/business/businesses/${business.id}/menu`
+                    : `/business/businesses/${business.id}/products`
+                }
                 className="rounded-pill border border-sand-200 px-3 py-2 text-sm font-medium text-ocean-900"
               >
-                Menu
+                {business.business_type === "restaurant" ? "Menu" : "Products"}
               </Link>
               <BusinessOpenToggle businessId={business.id} isOpen={business.is_open} />
             </div>

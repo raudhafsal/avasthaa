@@ -11,7 +11,7 @@ export default async function AdminDashboardPage() {
     { label: "Partner approvals pending", value: metrics.pendingPartnerCount, href: "/admin/partners?tab=pending" },
     { label: "Today's orders", value: metrics.todaysOrders, href: "/business/orders" },
     { label: "Today's sales", value: `MVR ${metrics.todaysSales.toFixed(2)}`, href: "/business/reports" },
-    { label: "Open support tickets", value: metrics.openTickets, href: "/admin/settings" },
+    { label: "Open support tickets", value: metrics.openTickets, href: "/business/support" },
   ];
 
   return (

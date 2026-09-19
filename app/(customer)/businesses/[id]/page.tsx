@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { Star, Clock } from "lucide-react";
+import { Star } from "lucide-react";
 import { getLocale } from "@/lib/i18n/server";
 import { t } from "@/lib/i18n/dictionaries";
 import { createClient } from "@/lib/supabase/server";
-import { getBusinessById, getRestaurantMenu } from "@/lib/services/catalog";
-import { MenuItemCard } from "@/components/customer/menu-item-card";
+import { getBusinessById, getShopProducts } from "@/lib/services/catalog";
+import { ProductCard } from "@/components/customer/product-card";
 import { FavoriteButton } from "@/components/customer/favorite-button";
 
-export default async function RestaurantPage({ params }: { params: { id: string } }) {
+export default async function ShopPage({ params }: { params: { id: string } }) {
   const locale = getLocale();
   const strings = t(locale);
   const business = await getBusinessById(params.id);
@@ -22,14 +22,13 @@ export default async function RestaurantPage({ params }: { params: { id: string 
     ? await supabase.from("favorites").select("id").eq("profile_id", user.id).eq("business_id", params.id).maybeSingle()
     : { data: null };
 
-  const { categories, items } = await getRestaurantMenu(params.id);
+  const { categories, products } = await getShopProducts(params.id);
   const name = locale === "dv" && business.name_dhivehi ? business.name_dhivehi : business.name;
-  const description = locale === "dv" && business.description_dhivehi ? business.description_dhivehi : business.description;
 
-  const uncategorized = items.filter((i) => !i.category_id);
+  const uncategorized = products.filter((p) => !p.category_id);
   const grouped = categories
-    .map((category) => ({ category, items: items.filter((i) => i.category_id === category.id) }))
-    .filter((g) => g.items.length > 0);
+    .map((category) => ({ category, products: products.filter((p) => p.category_id === category.id) }))
+    .filter((g) => g.products.length > 0);
 
   return (
     <div className="flex flex-col gap-5 pb-6">
@@ -49,45 +48,43 @@ export default async function RestaurantPage({ params }: { params: { id: string 
 
       <div className="flex flex-col gap-2 px-4">
         <h1 className="text-xl font-bold text-ink-900">{name}</h1>
-        {description && <p className="text-sm text-ink-500">{description}</p>}
+        {business.description && <p className="text-sm text-ink-500">{business.description}</p>}
         <div className="flex flex-wrap items-center gap-3 text-sm text-ink-700">
           <span className="flex items-center gap-1">
             <Star size={16} className="fill-lagoon-500 text-lagoon-500" />
             <span className="ltr-number">{business.rating_count > 0 ? business.rating_average.toFixed(1) : "—"}</span>
           </span>
-          <span className="flex items-center gap-1">
-            <Clock size={16} />
-            <span className="ltr-number">
-              {strings.business.minutesEstimate.replace("{min}", String(business.estimated_prep_minutes))}
-            </span>
-          </span>
           <span className="ltr-number">
             {strings.business.deliveryFee}: {strings.common.currency} {business.delivery_fee.toFixed(2)}
-          </span>
-          <span className="ltr-number">
-            {strings.business.minOrder}: {strings.common.currency} {business.minimum_order.toFixed(2)}
           </span>
         </div>
       </div>
 
       <div className="flex flex-col gap-6 px-4">
         {uncategorized.length > 0 && (
-          <section className="flex flex-col gap-3">
-            {uncategorized.map((item) => (
-              <MenuItemCard key={item.id} item={item} businessId={business.id} locale={locale} />
+          <section className="grid grid-cols-2 gap-3">
+            {uncategorized.map((product) => (
+              <ProductCard key={product.id} product={product} businessId={business.id} locale={locale} />
             ))}
           </section>
         )}
-        {grouped.map(({ category, items: categoryItems }) => (
+        {grouped.map(({ category, products: categoryProducts }) => (
           <section key={category.id} className="flex flex-col gap-3">
             <h2 className="font-semibold text-ink-900">
               {locale === "dv" && category.name_dhivehi ? category.name_dhivehi : category.name}
             </h2>
-            {categoryItems.map((item) => (
-              <MenuItemCard key={item.id} item={item} businessId={business.id} locale={locale} />
-            ))}
+            <div className="grid grid-cols-2 gap-3">
+              {categoryProducts.map((product) => (
+                <ProductCard key={product.id} product={product} businessId={business.id} locale={locale} />
+              ))}
+            </div>
           </section>
         ))}
+        {products.length === 0 && (
+          <div className="rounded-card bg-white p-6 text-center shadow-card">
+            <p className="font-medium text-ink-700">{strings.home.noResults}</p>
+          </div>
+        )}
       </div>
     </div>
   );

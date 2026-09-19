@@ -33,6 +33,9 @@ export default async function BusinessDashboardPage() {
         <Link href="/business/businesses" className="mt-1 text-sm font-semibold text-ocean-900">
           View all businesses →
         </Link>
+        <Link href="/business/support" className="text-sm font-semibold text-ocean-900">
+          Support tickets →
+        </Link>
       </div>
     </div>
   );

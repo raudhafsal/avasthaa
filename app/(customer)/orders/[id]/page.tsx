@@ -4,6 +4,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { t } from "@/lib/i18n/dictionaries";
 import { createClient } from "@/lib/supabase/server";
 import { SlipUploadForm } from "@/components/customer/slip-upload-form";
+import { ReviewForm } from "@/components/customer/review-form";
 
 const ORDER_STEPS: { status: string; labelKey: string }[] = [
   { status: "pending", labelKey: "Order placed" },
@@ -30,7 +31,7 @@ export default async function OrderDetailPage({
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, order_number, status, payment_method, subtotal, delivery_fee, discount_amount, total_amount, created_at, businesses(name, name_dhivehi, estimated_prep_minutes), order_items(id, item_name, quantity, line_total, selected_options)",
+      "id, order_number, status, payment_method, business_id, subtotal, delivery_fee, discount_amount, total_amount, created_at, businesses(name, name_dhivehi, estimated_prep_minutes), order_items(id, item_name, quantity, line_total, selected_options)",
     )
     .eq("id", params.id)
     .single();
@@ -46,8 +47,15 @@ export default async function OrderDetailPage({
 
   const { data: delivery } = await supabase
     .from("deliveries")
-    .select("id, stage, assigned_partner_id")
+    .select("id, stage, assigned_partner_id, delivery_partners(profiles(full_name))")
     .eq("order_id", order.id)
+    .maybeSingle();
+
+  const { data: existingReview } = await supabase
+    .from("reviews")
+    .select("id")
+    .eq("order_id", order.id)
+    .eq("business_id", order.business_id)
     .maybeSingle();
 
   const businessName =
@@ -169,6 +177,16 @@ export default async function OrderDetailPage({
         <p className="text-center text-sm text-ink-500">
           Delivery status: <span className="font-medium capitalize text-ink-900">{delivery.stage.replace(/_/g, " ")}</span>
         </p>
+      )}
+
+      {order.status === "delivered" && !existingReview && (
+        <ReviewForm
+          orderId={order.id}
+          businessId={order.business_id}
+          businessName={businessName}
+          partnerId={delivery?.assigned_partner_id}
+          partnerName={(delivery as any)?.delivery_partners?.profiles?.full_name}
+        />
       )}
     </div>
   );
